@@ -4151,14 +4151,16 @@ message WriteRequest {
     DATAPLANE_ATOMIC = 2;
   }
   Atomicity atomicity = 5;
+  Uint128 term = 6;
 }
 ~ End Proto
 
 The `device_id` uniquely identifies the target P4 device. The `role_id` and
 `election_id` define the client role and election-id as described in the
 [Master-Slave Arbitration and Controller Replication](#sec-master-slave-arbitration-and-controller-replication)
-section. The server is expected to perform the following checks (in this order)
-before processing the `updates` list:
+section. The `term` is an optional fencing token used to ensure ordering
+of writes across clients. The server is expected to perform the following
+checks (in this order) before processing the `updates` list:
 
 1. If `device_id` does not match any of the devices known to the P4Runtime
    server or if `role_id` does not match any of the roles for the device, the
@@ -4167,8 +4169,19 @@ before processing the `updates` list:
 2. If the client is not the master for (`device_id`, `role_id`) according to the
    `election_id` value, the server must return a `PERMISSION_DENIED` error.
 
-3. If the `Write` is attempted before a `ForwardingPipelineConfig` has been set,
+3. If the client specified a non-zero `term` and the value is less than the
+   last term accepted by the server for (`device_id`, `role_id`), the server
+   must return a `PERMISSION_DENIED` error.
+
+4. If the `Write` is attempted before a `ForwardingPipelineConfig` has been set,
    the server must return a `FAILED_PRECONDITION` error.
+
+Once all checks have passed, if a non-zero `term` was specified the server must:
+
+* Store the term for the (`device_id`, `role_id`) in memory for future checks
+
+* If the term has increased, write the term to persistent storage to preserve
+  the value through reboots
 
 The updates field is a list of P4 entity updates to be applied. Each update is
 defined as:

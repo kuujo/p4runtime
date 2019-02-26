@@ -90,6 +90,11 @@ message WriteRequest {
     DATAPLANE_ATOMIC = 2;
   }
   Atomicity atomicity = 5;
+  // The term is an optional fencing token for ordering writes across clients.
+  // When provided, this must be a monotonically increasing number associated with
+  // the (device_id, role_id), and only writes with a term equal to or greater
+  // than the last term accepted by the server will succeed.
+  Uint128 term = 6;
 }
 
 message WriteResponse {
